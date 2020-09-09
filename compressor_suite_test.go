@@ -3,6 +3,8 @@ package compressor
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/base64"
+	"encoding/json"
 	"io/ioutil"
 	"testing"
 
@@ -21,7 +23,7 @@ var _ = Describe("Compressor", func() {
 			data := []byte("TestString")
 
 			compressedData := Compress(data)
-			testDecompressDataReader := Decompress(bytes.NewReader(compressedData))
+			testDecompressDataReader, err := Decompress(bytes.NewReader(compressedData))
 			reader, err := gzip.NewReader(bytes.NewReader(compressedData))
 
 			Expect(err).NotTo(HaveOccurred())
@@ -33,16 +35,33 @@ var _ = Describe("Compressor", func() {
 			Expect(string(uncompressedData)).To(Equal("TestString"))
 			Expect(string(decompressData)).To(Equal("TestString"))
 		})
+		It("should encode compress the given object", func() {
+			encodedString := CompressAndEncodeObjectToString(map[string]string{
+				"foo": "bar",
+			}, base64.RawURLEncoding)
+
+			bts, _ := base64.RawURLEncoding.DecodeString(encodedString)
+
+			r, _ := Decompress(bytes.NewReader(bts))
+			b, _ := ioutil.ReadAll(r)
+			returnMap := make(map[string]string)
+			Expect(json.Unmarshal(b, &returnMap)).To(BeNil())
+			Expect(returnMap["foo"]).To(Equal("bar"))
+		})
+		It("should decode and decompress the given string", func() {
+			encodedString := CompressAndEncodeObjectToString(map[string]string{
+				"foo": "bar",
+			}, base64.RawURLEncoding)
+			returnMap := make(map[string]string)
+			Expect(DecodeAndDecompress(encodedString, base64.RawURLEncoding, &returnMap)).To(BeNil())
+			Expect(returnMap["foo"]).To(Equal("bar"))
+		})
 	})
 	Context("Failure", func() {
 		It("should fail on decompress", func() {
-			defer func() {
-				if r := recover(); r == nil {
-					Fail("The code did not panic")
-				}
-			}()
-			reader := Decompress(bytes.NewReader([]byte("test")))
+			reader, err := Decompress(bytes.NewReader([]byte("test")))
 			Expect(reader).To(BeNil())
+			Expect(err).NotTo(BeNil())
 		})
 	})
 })
